@@ -1,0 +1,980 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{minted}
+\usepackage{xcolor} % to access the named colour LightGray
+\usepackage{textcomp}
+\usepackage{multirow}
+\usepackage{listings}
+\usepackage{fancyvrb}
+\usepackage{algorithm}
+\usepackage{float}
+\usepackage{algpseudocode}
+\usepackage{framed}
+\definecolor{LightGray}{gray}{0.9}
+\usepackage[listings,skins]{tcolorbox}
+\usepackage[skipbelow=\topskip,skipabove=\topskip]{mdframed}
+\usepackage{tabularx}
+\usepackage{array}
+\lstset{language=Python,
+        basicstyle=\ttfamily\footnotesize,
+        keywordstyle=\color{blue},
+        commentstyle=\color{red},
+        breaklines=true,                 % Automatically breaks long lines
+        postbreak=\mbox{\textcolor{red}{$\hookrightarrow$}\space}, % Mark line breaks
+        stringstyle=\color{red},
+        showstringspaces=false,
+        identifierstyle=\color{black},
+        procnamekeys={def,class},
+        numbers=left,                     % Add line numbers on the left
+        numberstyle=\tiny\color{gray},    % Style of the line numbers
+        stepnumber=1,                     % Line number step
+        numbersep=5pt,                    % How far the line numbers are from the code
+        xleftmargin=0.5cm
+        }
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Software Prefetching for Indirect Memory Accesses\\
+{\footnotesize \textsuperscript{*}Note: Sub-titles are not captured in Xplore and
+should not be used}
+\thanks{}
+}
+
+\author{\IEEEauthorblockN{Aditya Kumar Bej}
+\IEEEauthorblockA{\textit{Department of Computer Science} \\
+\textit{University of California, Davis}\\
+Davis, California \\
+akbej@ucdavis.edu}
+\and
+\IEEEauthorblockN{Prem Gorde}
+\IEEEauthorblockA{\textit{Department of Computer Science} \\
+\textit{University of California, Davis}\\
+Davis, California \\
+pkgorde@ucdavis.edu}
+% \and
+% \IEEEauthorblockN{3\textsuperscript{rd} Given Name Surname}
+% \IEEEauthorblockA{\textit{dept. name of organization (of Aff.)} \\
+% \textit{name of organization (of Aff.)}\\
+% City, Country \\
+% email address or ORCID}
+% \and
+% \IEEEauthorblockN{4\textsuperscript{th} Given Name Surname}
+% \IEEEauthorblockA{\textit{dept. name of organization (of Aff.)} \\
+% \textit{name of organization (of Aff.)}\\
+% City, Country \\
+% email address or ORCID}
+% \and
+% \IEEEauthorblockN{5\textsuperscript{th} Given Name Surname}
+% \IEEEauthorblockA{\textit{dept. name of organization (of Aff.)} \\
+% \textit{name of organization (of Aff.)}\\
+% City, Country \\
+% email address or ORCID}
+% \and
+% \IEEEauthorblockN{6\textsuperscript{th} Given Name Surname}
+% \IEEEauthorblockA{\textit{dept. name of organization (of Aff.)} \\
+% \textit{name of organization (of Aff.)}\\
+% City, Country \\
+% email address or ORCID}
+}
+
+\maketitle
+
+\begin{abstract}
+% This document is a model and instructions for \LaTeX.
+% This and the IEEEtran.cls file define the components of your paper [title, text, heads, etc.]. *CRITICAL: Do Not Use Symbols, Special Characters, Footnotes, 
+% or Math in Paper Title or Abstract.
+
+In the field of computing, complex software algorithms play a crucial role in powering the backend systems of various applications. These applications include graph processing for social networks like Facebook's TAO system, scientific simulations with GROMACS, advanced gaming engines from Unreal and Unity, and database management systems such as MongoDB and Apache Cassandra. They all heavily rely on indirect memory accesses, which involve navigating through data structures like trees and graphs. This process can cause significant delays due to the unpredictable nature of memory access patterns, which in turn affects the performance of these systems.
+
+Conventional prefetching strategies, predominantly hardware-oriented, often fall short in the face of such irregular access patterns, thereby compromising their ability to efficiently prefetch requisite data. Although software prefetching emerges as a viable alternative, it typically requires programmers to manually insert special instructions into the code, which is time-consuming and prone to mistakes.
+
+This paper explores an automated approach to software prefetching, specifically designed for dealing with indirect memory accesses in complex and data-heavy applications. By automating the process, the aim is to save time and reduce errors, leading to improvements in overall system performance. We present a thorough analysis of the current state of software prefetching and propose a new, automated system that could help make software applications run faster and more efficiently. This could be a significant step forward in the world of high-performance computing.
+
+\end{abstract}
+
+\begin{IEEEkeywords}
+Prefetching, Cache, Compiler Analysis, Automated Software Prefetching
+\end{IEEEkeywords}
+
+\section{Introduction}
+   In the evolving landscape of computing, in particular to large scale computing, the efficiency of memory access patterns plays a pivotal role in determining the overall performance of software applications. As modern computational workloads become increasingly complex [10, 13, 17], particularly with the growing prevalence of data-intensive tasks, the challenge of efficiently managing memory accesses has come to the forefront. One major challenge to this aspect is handling of indirect memory accesses (IMAs) which is a common scenario in various high-level computations, ranging from sophisticated data analysis to complex 3D rendering of gaming and simulations. IMAs occur when the memory address to be accessed is not explicitly known at compile-time but instead computed dynamically during program execution. This makes it difficult for hardware prefetchers to accurately predict future memory accesses.
+
+   Software prefetching [2] for IMAs attempts to address this challenge by leveraging compiler analysis and optimization techniques to anticipate future memory accesses based on a program context and access patterns. This proactive approach can significantly improve memory performance by preloading data into the processor cache before it is actually needed. Existing approaches for stride and linked-list access patterns [2, 23] have limited effectiveness due to factors such as hardware efficiency and inherent lack of parallelism. However indirect memory accesses display abundant parallelism, making them ideal candidates for automated prefetching. The widespread adoption of software prefetching faces a few major hurdles. While manual prefetching offers finer-grained control, it is a time-consuming and error-prone process [76]. Developers need to manually identify and insert prefetch instructions, requiring in-depth understanding of the program's memory access patterns and the target architecture. And apart from manual prefetching, there are limited automatic techniques where existing compiler-based techniques [4] for automatically identifying and prefetching IMAs are limited in their scope and effectiveness due to factors such as not being tested on latest sparse workloads. They often require specific access patterns and may not be able to handle complex program behavior.
+
+   In this paper, we conduct a comprehensive study of existing prefetching techniques that employ both software and hardware strategies, particularly focusing on sparse data structures. We evaluate several promising ideas from these studies to enhance our compiler-based prefetching algorithm. Furthermore, we analyze the limitations of existing solutions and explore intuitive approaches to address these challenges. We also place special emphasis on testing our automated software prefetching algorithm with sparse workloads, which are common in numerous applications. Our testing environment is state-of-the-art, utilizing the latest software versions, including Ubuntu 22.04 and LLVM with Clang 14.0. This modern setup ensures that our testing accurately reflects the latest computing environments, providing a relevant and updated comparison with earlier research.
+
+\section{Problem Definition}
+
+The primary challenge addressed in this study is the optimization of memory access in software applications that extensively utilize indirect memory accesses (IMAs). These IMAs are a common feature in a range of high-performance computing tasks, yet their dynamic nature makes prefetching data into the processor cache a complex endeavor. Traditional hardware prefetching methods are often ineffective due to their inability to anticipate the dynamically computed memory addresses that characterize IMAs. This leads to a significant increase in memory access time, thereby impeding overall application performance.
+
+Current software-based prefetching techniques, while offering a potential solution, face limitations in terms of their scope and efficiency. The manual insertion of prefetch instructions, although precise, is a laborious and error-prone process, requiring extensive knowledge of both the application’s memory usage and the underlying hardware architecture. Automated methods, on the other hand, are still in their nascent stages, with limited effectiveness in dealing with the complexities of modern software environments, particularly in the context of sparse data structures. 
+
+
+\section{Related work and its limitations}
+Software prefetching has garnered considerable attention in prior research, and our work offers a comprehensive overview of various techniques. This includes an analysis of their performance impact, methods for automating prefetch instruction insertion, a combination of some efficient hardware and software based prefetching techniques. We also note down the limitations and bottleneck for these studies which helps in evaluating gaps in current research.
+
+\subsection{IMP: indirect memory prefetcher \cite{2}}
+IMP, implemented by Xu. et al, very closely tackles the problem we are approaching in our study, but propose an alternative solution track which has also given good results. IMP is a hardware implementation which deals specifically with irregular memory accesses in sparse data structures with an efficient hardware indirect memory prefetcher to capture access patterns and hide latency. Specifically, this method is able to target irregular memory accesses of non-zero elements in a sparse matrix, which of the nature A[B[i]]. Along with this, they have also kept the problem with cachelines and sparse data structures in mind, and proposed a partial cacheline accessing mechanism, since not all the data in a given cacheline is needed at the same time. Their partial cacheline accessing mechanism is able to fetch only the important parts of the block required. According to their study, they have been able to achieve up to 2.3x speedup, and another 9.4\% with the partial cacheline accessing.
+
+The main drawback of this approach stems from its hardware-based nature. Since it is a hardware  implementation, it is very difficult to customise the data access patterns, which are very easily modifiable in software. Similarly, integrating IMP with different micro-architectures and system configurations is not feasible. It's specific need of hardware architectures reduces its portability. Also, its own complexity in implementation makes it difficult to implement and re-use and/or modify.
+
+\subsection{Array Tracking Prefetcher: Informed Prefetching for Indirect Memory Accesses \cite{3}}
+Cavus et al. propose ATP, the Array Tracking Prefetcher, which tracks array-based indirect memory accesses using a novel combination of software and hardware. It uses pre-inserted configurations from the programmer and the compiler to pass data structure traversal knowledge. The big advantage of this implementation is that it achieves a speedup of 2.17x compared to a single-core system without prefetching, and a speedup of 1.84x over conventional software and over 1.32x over only hardware prefetching \cite{3}. 
+
+The downside of this implementation is that the special metadata being inserted in the beginning must be done by the programmer. From there, there is a large amount of complexity to be overcome in order to finish the implementation due to it being both hardware and software combined. This combined implementation also makes it hard for the mechanism to adapt to runtime changes in the memory access patterns, especially in highly variable or unpredictable workloads. And since we want to focus on such workloads, this implementation does not provide as much merit.
+
+\subsection{APT-GET: profile-guided timely software prefetching \cite{4}}
+One of the most recent developments in the software prefetching realm, APT-GET proposes a solution beyond static compiler-based prefetching mechanism. APT-GET is designed to identify and pre-load future memory accesses for irregular access patterns. It does so by calculating optimal prefetching distance and the best site for optimal prefetching injection. The most novel part of this study is that this prefetching injection is automated, and also provides variable prefetch-distance and injection sites. This facilitates easier integration into development workloads.
+
+One disadvantage of the paper is that it is only tested on older sparse workloads, which do not provide a good representation of modern workloads, where such techniques are needed. Also, since this implementation of APT-GET specifically relies on Intel's Last Branch Record (LBR) hardware support system, it is hard to speculate the performance of this software without it, or with some other implementation. Testing of this implementation on different systems and different, more complex workloads, or even real-time applications needs to be studied to evaluate its performance metrics more accurately.
+
+
+\section{Plan for Improvement}
+
+Our work for this paper is the following
+
+\begin{itemize}
+\item To focus exclusively on sparse workloads only with software prefetching.
+\item Test on datasets relating to sparse workloads used in modern real world applications such as in modern graph workloads and various implementations of generating the graph structure, Integer and Conjugate Gradient functions, and random accesses in High Performance Computing systems.
+\item Make efforts on good manual prefetching for a comparative analysis with automated prefetching. This involves studying the source code of the workloads in detail and identifying the most appropriate injection sites.
+\item To focus on improving and extending the functionalities of existing automated software prefetch generation algorithms [1, 4] in the most recent versions of the technology stack such as LLVM, Clang, Ubuntu in order to drastically reduce the inconvenience and time to execute and test even more sparser workloads when compared to manual prefetching.
+\item Our workloads are more sparser compared to previous related works [1, 4] since we use modified parameters which affect the sparsity of the workloads. The nuances behind these benchmark parameters are explained in Subsection~\ref{subsec:workload}.
+\end{itemize}
+
+\subsection{Choosing the right workload}\label{AA}
+\label{subsec:workload}
+
+\begin{enumerate}
+\item \textbf{Graph 500}
+
+The Graph500 workload was specifically designed to measure the performance of systems data-intensive graph analytics workloads. The workload performs a breadth-first search on a generated Kronecker graph [14]. A Kronecker graph is a type of graph generated by the Kronecker product, which is used primarily in network analysis, particularly for modeling and simulating large-scale networks like social networks, web graphs, and biological networks.
+
+This workload has been a popular choice used by other software prefetching papers [1,4]. The before-mentioned papers use only the Sequential compressed-Sparse-Row implementation as the workload for testing. But we have chosen to test on 3 different implementations of the graph500 workload as we can get broader performance insights due to the various data structures used in the implementation. This overall allows us to comprehensively benchmark the effectiveness of the software prefetching algorithm against different approaches. From our research, we have not seen any other paper who have tested against multiple implementations of graph500 in the context of automated software prefetching. The benchmark parameters also differ compared to the previous papers as we are using a higher scale and edge factor with modified initiator parameters (A, B, C, D) for generating our graph for each implementation.
+
+\begin{enumerate}
+    \item Sequential List-based Implementation
+    \item Sequential Compressed-Sparse-Row Implementation
+    \item OpenMP Compressed-Sparse-Row Implementation
+\end{enumerate}
+\hfill \break
+\textbf{1.A) Graph 500 Sequential List-based Implementation}
+\begin{itemize}
+    \item \textbf{Benchmark} - Graph500 [13]
+    \item \textbf{Overview} - The seq-list workload [8] involves a sequential list-based implementation for processing large-scale graph data. This method represents the graph as a list of edges or vertices, which the algorithm sequentially traverses. The focus is on operations like graph traversal, search, and pathfinding, common in many graph analytics tasks.
+    \item \textbf{Use case} - This implementation is particularly useful in environments where parallel computing resources are limited or unavailable. It serves as a baseline for evaluating more complex, parallel implementations of graph algorithms. It's representative of scenarios in traditional single-threaded applications dealing with graph data, such as certain types of database queries, network analysis, and basic graph computations.
+    \item \textbf{Analysis overview} - The performance analysis of this workload would involve measuring the efficiency of list-based graph traversal, particularly in terms of time complexity and memory access patterns. The sequential nature of the algorithm offers insights into the baseline performance of graph processing tasks without parallel optimizations.
+    \item \textbf{Benchmark parameters} - Scale = \textbf{20} (2\textsuperscript{20} or approximately 1,048,576 vertices) ; Edge factor = \textbf{16} ; Initiator Parameters \textbf{{A=0.25; B=0.30; C=0.30; D=0.05}}
+    \item \textbf{Parameter information}: 
+    \begin{itemize}
+        \item \textbf{Scale} - SCALE is a parameter in the Graph500 benchmark that determines the size of the graph by specifying the logarithm base two of the number of vertices. An increase in SCALE leads to an exponential growth in the number of vertices, resulting in a larger graph with a more significant memory footprint. This could cause more cache misses, especially if prefetching is not optimized for larger data sets. Conversely, decreasing SCALE results in a smaller graph with fewer vertices, potentially enhancing cache efficiency and prefetching effectiveness due to the reduced data size.
+        \item \textbf{Edge Factor} - edgefactor is the ratio of the graph's edge count to its vertex count, essentially representing half the average degree of a vertex in the graph. Increasing the edgefactor leads to a denser graph with more edges per vertex, complicating graph traversal algorithms and potentially leading to irregular memory access patterns, challenging the effectiveness of prefetching. Decreasing the edgefactor results in a sparser graph, simplifying memory access patterns and possibly making prefetching more efficient.
+        \item \textbf{Initiator Parameters (A,B,C,D)} - The initiator parameters (A, B, C, D) in the Graph500 benchmark define the probabilities of placing an edge in one of four partitions of the adjacency matrix during graph generation. Altering these parameters changes the graph's structure, impacting memory access patterns during processing. For example, a higher value of A increases the likelihood of edges within the same partition, leading to more localized memory accesses that might be better suited for prefetching. In contrast, a more uniform distribution among these parameters might result in random access patterns, posing a greater challenge for prefetching strategies.
+    \end{itemize}
+\end{itemize}
+
+\hfill \break
+\textbf{1.B) Graph 500 Sequential Compressed-Sparse-Row Implementation }
+\begin{itemize}
+    \item \textbf{Benchmark} - Graph500 [13]
+    \item \textbf{Overview} - The seq-csr [8] workload uses a sequential approach with the compressed-sparse-row (CSR) format for graph representation. CSR is efficient for storing and accessing sparse matrices, which is a common representation for graphs, especially those with large numbers of vertices and edges.
+    \item \textbf{Use case} - This implementation is ideal for analyzing the performance of graph algorithms on sparse graphs, particularly where memory efficiency is crucial. It's representative of applications like social network analysis, web graph processing, and sparse matrix computations in scientific computing.
+    \item \textbf{Analysis overview} - Analyzing this workload focuses on the efficiency of the CSR format in terms of memory usage and access, as well as the computational complexity of graph algorithms in a sequential computing environment. It provides a benchmark for the performance of sparse graph processing without parallelization.
+    \item \textbf{Benchmark parameters} - Scale = \textbf{20} (2\textsuperscript{20} or approximately 1,048,576 vertices) ; Edge factor = \textbf{16} ; Initiator Parameters \textbf{{A=0.25; B=0.30; C=0.30; D=0.05}}
+\end{itemize}
+\hfill \break
+\textbf{1.C) Graph 500 OpenMP Compressed-Sparse-Row Implementation }
+\begin{itemize}
+    \item \textbf{Benchmark} - Graph500 [13]
+    \item \textbf{Overview} - The omp-csr workload extends the CSR implementation with parallel processing using OpenMP [16], a widely-used parallel programming model. This approach leverages multi-core processors to handle graph processing tasks more efficiently.
+    \item \textbf{Use case} - This implementation is suited for environments where parallel processing resources are available. It's particularly relevant for multi-threaded applications in high-performance computing, where efficient parallel processing of large-scale, sparse graphs is required.
+    \item \textbf{Analysis overview} - Performance analysis here involves evaluating the effectiveness of parallel optimizations in the CSR format for graph processing. The focus is on measuring improvements in computational speed, efficiency of memory access in a multi-threaded context, and scalability of the algorithm across multiple processor cores.
+    \item \textbf{Benchmark parameters} - Scale = \textbf{20} (2\textsuperscript{20} or approximately 1,048,576 vertices) ; Edge factor = \textbf{16} ; Initiator Parameters \textbf{{A=0.25; B=0.30; C=0.30; D=0.05}}
+\end{itemize}
+\hfill \break
+We have also decided to test a few other following workloads. The intuition for choosing each workload is mentioned alongside.
+\hfill \break
+    \item \textbf{NAS-Integer Sort}
+\begin{itemize}
+    \item \textbf{Benchmark} - NAS Parallel Benchmarks [10]
+    \item \textbf{Overview} - Integers are sorted using a bucket sort, walking an array of integers and resulting in array-indirect accesses to increment the bucket of each observed value.
+    \item \textbf{Use case} - Representative of computational fluid dynamics workloads.
+    \item \textbf{Analysis overview} - Tested with the software prefetching algorithm by inserting software prefetches in the loop that updates the bucket count,This is done by looking ahead in the main array and issuing prefetch commands based on the indices derived from these upcoming values.
+    \item \textbf{Benchmark parameters} - Class B ; Size = \textbf{33554432} ; Number of iterations - \textbf{10}
+    \item \textbf{Parameter information}: 
+    \begin{itemize}
+        \item \textbf{Size} - Increasing the Size parameter results in a larger array of integers to sort, which increases the computational complexity and memory usage. It challenges the efficiency of the sorting algorithm, especially in terms of memory access patterns and cache utilization
+        \item \textbf{Number of Iterations} - Increasing the number of iterations will repeat the sorting task more times, amplifying any performance characteristics or bottlenecks of the algorithm.
+    \end{itemize}
+    \item \textbf{Benchmark Version} - We are using the latest version (3.3-Open MP) [11] from the NAS Parallel Benchmarks. The other papers [1, 4] dealing with this workload used older versions (2.3)
+\end{itemize}
+
+   \item \textbf{NAS-Conjugate Gradient}
+\begin{itemize}
+    \item \textbf{Benchmark} - NAS Parallel Benchmarks [10]
+    \item \textbf{Overview} - Performs eigenvalue estimation on sparse matrices. The sparse matrix multiplication exhibits an array-indirect pattern.
+    \item \textbf{Use case} - Design is typical of unstructured grid computations
+    \item \textbf{Analysis overview} - The array-indirect pattern allows the software prefetches to be inserted based on the benchmark’s NZ matrix which stores non-zeros, using the stored indices of the dense vector it points to. The irregular access is on a smaller dataset than Integer Sort, meaning it is more likely to fit in the L2 cache and is less challenging for a TLB system.
+    \item \textbf{Benchmark parameters} - Class C ; Size = \textbf{150000} ; Non-zero elements = \textbf{15} ; Number of iterations = \textbf{75} ; Eigenvalue shift - \textbf{110.0}
+    \item \textbf{Parameter information}:
+    \begin{itemize}
+        \item \textbf{Size} - Increasing the size makes the problem larger and more computationally intensive, resulting in more memory usage and possibly necessitating more efficient memory access strategies
+        \item \textbf{Non-zero elements} - Specifies the average number of non-zero elements per row in the matrix. Increasing this makes the matrix denser, which could lead to more regular memory access patterns, and decreasing makes the matrix sparser, potentially leading to more irregular memory access patterns.
+        \item \textbf{Number of iterations} - Sets the number of iterations in the conjugate gradient algorithm. Increasing it extends the computation, enhancing the impact of memory access patterns on overall performance and decreasing shortens the computation, which might reduce the effectiveness of prefetching.
+        \item \textbf{Eigenvalue shift} - This is used to modify the matrix eigenvalues, which can affect the condition number and convergence properties of the algorithm. Adjusting this can impact the numerical behavior of the algorithm but does not directly influence the computational workload or memory access patterns.
+    \end{itemize}
+    \item \textbf{Benchmark Version} - We are using the latest version (3.4-Open MP) [12] from the NAS Parallel Benchmarks. The other papers [1, 4] dealing with this workload used older versions (2.3)
+\end{itemize}
+
+
+   \item \textbf{Camel - Multi Hashing}
+\begin{itemize}
+    \item \textbf{Benchmark} - Custom Benchmark [1]
+    \item \textbf{Overview} - This benchmark measures the performance of a program that traverses a hash chain with varying depths determined by NUMHASH. The program calculates the sum of values through the chain, where each value is accessed indirectly through a hash function.
+    \item \textbf{Use case} - This benchmark can be used to evaluate the effectiveness of prefetching techniques for indirect memory accesses, particularly in scenarios involving nested hashing and deep memory dependency chains.
+    \item \textbf{Analysis overview} - The benchmark analyzes the time taken to traverse the hash chain and calculate the sum. This time is then used to evaluate the impact of prefetching on memory access performance and overall program execution speed.
+    \item \textbf{Benchmark parameters} - MAX KEY = \textbf{33554432} ; NUMHASH = \textbf{20} ; PREFETCH = \textbf{0/1 (Boolean)}
+    \item \textbf{Parameter information}:
+    \begin{itemize}
+        \item \textbf{MAX KEY} - Increasing the size makes the problem larger and more computationally intensive, reulting in more memory usage and possibly necessitating more efficient memory access strategies
+        \item \textbf{NUMHASH} - Specifies the average number of non-zero elements per row in the matrix. Increasing this makes the matrix denser, which could lead to more regular memory access patterns, and decreasing makes the matrix sparser, potentially leading to more irregular memory access patterns.
+        \item \textbf{PREFETCH} - Sets the number of iterations in the conjugate gradient algorithm. Increasing it extends the computation, enhancing the impact of memory access patterns on overall performance and decreasing shortens the computation, which might reduce the effectiveness of prefetching.
+    \end{itemize}
+\end{itemize}
+\end{enumerate}
+
+\subsection{Manual Prefetching Analysis}\label{AA}
+
+This analysis focuses on the manual injection of prefetch instructions as a method of optimization and compares it with automated prefetching techniques. For each of the benchmarks, we analyzed the source code to understand the algorithm and identify injection sites for the prefetch instructions. We discuss the high level overview of these sites for each of the benchmarks
+
+\textbf{Graph 500}
+
+For every graph 500 based implementation, we did an manual in-order prefetching and out-of-order prefetching. In-order prefetching involves prefetching data that is expected to be accessed in the near future, based on the current memory access pattern. The idea is to reduce cache misses by having data ready in the cache before it is actually needed. Out-of-order prefetching is a more complex strategy where data is prefetched not strictly based on immediate upcoming accesses, but potentially based on expected accesses that are not immediately next in the sequence.
+
+\begin{enumerate}
+    \item \textbf{Graph 500 Sequential List-based Implementation}
+    Prefetch instructions were inserted in two functions \textbf{make-bfs-tree} and \textbf{create-graph-from-edgelist}. 
+    
+    \textbf{In-order prefetching} - for \textbf{create-graph-from-edgelist},  As described in Algorithm~\ref{alg:g500_7}, the focus is on the part of the function where in-order prefetching is used. The \textbf{builtin-prefetch} instruction is conditionally executed to ensure it remains within the bounds of the IJ-in array. This prefetching is strategically placed within the main loop, which processes each edge in the edge list. It aims to reduce cache misses by loading the data of future elements into the cache ahead of their actual use, improving the efficiency of the graph construction. For \textbf{make-bfs-tree}, As described in Algorithm~\ref{alg:g500_6}, the builtin-prefetch instruction is applied to prefetch elements from the vlist and bfs-tree arrays based on the current index and PREFETCH-DISTANCE. This prefetching strategy is designed to improve cache efficiency during the BFS tree construction process. By preloading data into the cache before it is actually used, the function can reduce cache misses, leading to potentially better performance.
+    
+    % \begin{figure}[htbp]
+    % \centering
+    % \includegraphics[width=\linewidth]{Term Project/graph-list-inorder.png}
+    % \caption{g500 seq-list in-order manual prefetches}
+    % \label{fig1}
+    % \end{figure}
+\begin{algorithm}[H]
+\caption{Graph Construction from Edge List with In-Order Prefetching}
+\label{alg:g500_7}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Edge list $IJ\_in$, number of edges $nedge$
+\STATE \textbf{Output:} Graph constructed from edge list
+\STATE \textbf{Procedure:} \textsc{CreateGraphFromEdgeList}
+\FOR{$k = 0$ to $nedge - 1$}
+    \STATE Perform in-order prefetching for future edges
+    \STATE Process edge $k$ from $IJ\_in$ (details omitted)
+\ENDFOR
+\RETURN $err$
+\end{algorithmic}
+\end{algorithm}
+
+
+\begin{algorithm}[H]
+\caption{BFS Tree Construction with In-Order Prefetching}
+\label{alg:g500_6}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Vertex list $vlist$, source vertex $srcvtx$
+\STATE \textbf{Output:} BFS tree $bfs\_tree\_out$, maximum vertex $max\_vtx\_out$
+\STATE \textbf{Procedure:} \textsc{MakeBfsTree}
+\STATE Initialize $bfs\_tree\_out$, $max\_vtx\_out$, allocate and initialize $vlist$
+\WHILE{termination condition not met}
+    \STATE Determine range for current iteration
+    \FOR{$k$ in the determined range}
+        \STATE Perform in-order prefetching for $vlist$ and $bfs\_tree$
+        \STATE Expand BFS tree using current vertex (details omitted)
+    \ENDFOR
+    \STATE Update loop control variables
+\ENDWHILE
+\STATE Free allocated memory
+\RETURN $err$
+\end{algorithmic}
+\end{algorithm}
+
+    \textbf{Out of order prefetching} - As described in Algorithm~\ref{alg:g500_8} for \textbf{create-graph-from-edgelist}, the part of the function where out-of-order prefetching is utilized is shown. The builtin-prefetch instruction is applied using a prefetch\_index that is calculated to potentially jump ahead in the edge list, going beyond a simple sequential approach. This out-of-order prefetching strategy is designed to anticipate and handle non-linear or less predictable memory access patterns that can occur during graph construction. It aims to preload relevant data into the cache before it's accessed, potentially improving performance by reducing cache misses. For \textbf{make\_bfs\_tree}, As described in Algorithm~\ref{alg:g500_9}, the builtin-prefetch instruction is applied with a prefetch\_index that potentially jumps ahead in the vertex list in a non-sequential manner. This prefetching strategy aims to handle irregular or non-linear access patterns during the BFS tree construction. It preloads data into the cache before it's accessed, potentially improving performance in scenarios where memory access patterns are less predictable.
+
+\begin{algorithm}[H]
+\caption{Graph Construction from Edge List with Out-of-Order Prefetching}
+\label{alg:g500_8}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Edge list $IJ\_in$, number of edges $nedge$
+\STATE \textbf{Output:} Graph constructed from edge list
+\STATE \textbf{Procedure:} \textsc{CreateGraphFromEdgeList}
+\FOR{$k = 0$ to $nedge - 1$}
+    \STATE Calculate prefetch index within bounds
+    \STATE Perform out-of-order prefetching for future edges
+    \STATE Process edge $k$ from $IJ\_in$ (details omitted)
+\ENDFOR
+\RETURN $err$
+\end{algorithmic}
+\end{algorithm}
+
+
+\begin{algorithm}[H]
+\caption{BFS Tree Construction with Out-of-Order Prefetching}
+\label{alg:g500_9}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Vertex list $vlist$, source vertex $srcvtx$, number of vertices $n$
+\STATE \textbf{Output:} BFS tree $bfs\_tree\_out$, maximum vertex $max\_vtx\_out$
+\STATE \textbf{Procedure:} \textsc{MakeBfsTree}
+\STATE Initialize $bfs\_tree\_out$, $max\_vtx\_out$, allocate and initialize $vlist$
+\WHILE{termination condition not met}
+    \STATE Determine range for current iteration
+    \FOR{$k$ in the determined range}
+        \STATE Calculate prefetch index within bounds
+        \STATE Perform out-of-order prefetching for $vlist$ and $bfs\_tree$
+        \STATE Expand BFS tree using current vertex (details omitted)
+    \ENDFOR
+    \STATE Update control variables
+\ENDWHILE
+\STATE Free allocated memory
+\RETURN $err$
+\end{algorithmic}
+\end{algorithm}
+
+    % \begin{figure}[htbp]
+    % \centering
+    % \includegraphics[width=\linewidth]{Term Project/graph-list-outoforder.png}
+    % \caption{g500 seq-list out-of-order manual prefetches}
+    % \label{fig2}
+    % \end{figure}
+    
+    \item \textbf{Graph 500 Sequential Compressed-Sparse-Row Implementation} - We utilized the existing manual prefetching done by Sam Aimsworth in this paper [1]
+    \textbf{In-order prefetching} - As described in Algorithm~\ref{alg:g500_5}, this prefetching strategy aims to optimize memory access patterns during the BFS tree construction in a graph represented using a Compressed-Sparse-Row (CSR) format. This type prefetches data in the order it will be accessed by the loop. The focus is on prefetching future entries of the vertex list \textbf{$vlist$} in the current iteration, which aligns with the in-order prefetching strategy.
+    
+    % \begin{figure}[htbp]
+    % \centering
+    % \includegraphics[width=\linewidth]{Term Project/graph-csr-inorder.png}
+    % \caption{g500 seq-csr in-order manual prefetches}
+    % \label{fig3}
+    % \end{figure}
+
+\begin{algorithm}[H]
+\caption{Pseudocode for Graph 500 CSR In-order prefetching}
+\label{alg:g500_5}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Vertex list $vlist$, source vertex $srcvtx$, number of vertices $nv$
+\STATE \textbf{Output:} BFS tree $bfs\_tree\_out$, maximum vertex $max\_vtx\_out$
+\STATE Initialize $bfs\_tree\_out$ and $max\_vtx\_out$
+\STATE Allocate memory for vertex list $vlist$
+\IF{memory allocation fails}
+    \RETURN $-1$
+\ENDIF
+\STATE Initialize $bfs\_tree\_out$ with $srcvtx$
+\STATE Initialize control variables $k1$, $k2$
+\WHILE{$k1 \neq k2$}
+    \FOR{$k$ from $k1$ to $oldk2 - 1$}
+        \STATE \textbf{In-Order Prefetching:} Prefetch future entries of $vlist$ for iteration $k$
+        \FOR{each adjacent vertex of $v$}
+            \STATE Update BFS tree if the vertex is not visited
+        \ENDFOR
+    \ENDFOR
+    \STATE Update control variables $k1$, $k2$
+\ENDWHILE
+\STATE Free allocated memory for $vlist$
+\RETURN $err$
+\end{algorithmic}
+\end{algorithm}
+
+
+
+
+\textbf{Out of order prefetching} - As described in Algorithm~\ref{alg:g500_4} Instead of prefetching a fixed number of elements ahead (in-order), this implementation uses conditional prefetching based on the value of \textbf{vlist[k + 8]}. This means data is only prefetched if the element is non-zero, reducing unnecessary overhead for empty entries. An optional prefetch for \textbf{vlist[k + 12]} is included within a \textbf{\#ifdef STRIDE} block. This suggests that this prefetch is likely based on a known stride pattern in the \textbf{vlist} array, potentially improving performance for specific scenarios.
+    
+    % \begin{figure}[htbp]
+    % \centering
+    % \includegraphics[width=\linewidth]{Term Project/graph-csr-outoforder.png}
+    % \caption{g500 seq-csr out-of-order manual prefetches}
+    % \label{fig4}
+    % \end{figure}
+
+\begin{algorithm}[H]
+\caption{Pseudocode for Graph 500 CSR Out-of-order prefetching}
+\label{alg:g500_4}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Source vertex $srcvtx$
+\STATE \textbf{Output:} BFS tree $bfs\_tree\_out$, maximum vertex $max\_vtx\_out$
+\STATE Initialize $bfs\_tree\_out$ and $max\_vtx\_out$
+\STATE Allocate and initialize vertex list $vlist$
+\WHILE{termination condition not met}
+    \STATE Determine the range for this iteration
+    \FORALL{$k$ in the determined range}
+        \STATE Perform out-of-order prefetching for $vlist$ and related $xadj$ entries
+        \FOR{each neighbor of the current vertex}
+            \IF{neighbor has not been visited}
+                \STATE Update the BFS tree with the new information
+            \ENDIF
+        \ENDFOR
+    \ENDFOR
+    \STATE Update loop control variables
+\ENDWHILE
+\STATE Release allocated resources
+\RETURN $err$
+\end{algorithmic}
+\end{algorithm}
+
+
+
+
+    \item \textbf{Graph 500 OpenMP Compressed-Sparse-Row Implementation} 
+
+    \textbf{In-order prefetching} - As described in Algorithm~\ref{alg:g500_3}. In the \textbf{gather\_edges} function, OpenMP is utilized (with the `OMP("omp parallel")` directive) to parallelize the processing of graph edges. This parallelization allows for simultaneous processing of multiple edges, effectively using multi-core processors. Within this parallel section, a loop (indicated by `OMP("omp for")`) iterates over all the edges in the graph. During each iteration, the function identifies the vertices (denoted as `i` and `j`) that are connected by the current edge. A key feature within this loop is the use of in-order prefetching command. This command instructs the CPU to proactively load the data related to an edge positioned `PREFETCH\_DISTANCE` (value set to \textbf{32} for experimentation) steps ahead of the current edge being processed into the cache.
+
+\begin{algorithm}[H]
+\caption{Pseudocode for Graph 500 OMP-CSR In-Order Prefetching (gather\_edge function)}
+\label{alg:g500_3}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Edge list $IJ$, number of edges $nedge$
+\STATE \textbf{Procedure:} \textsc{GatherEdges}
+\STATE Perform in parallel (OMP):
+    \FOR{$k = 0$ to $nedge - 1$}
+        \STATE Out-of-order prefetch upcoming entries in $IJ$ if within bounds
+        \STATE $i \gets$ source vertex of edge $k$
+        \STATE $j \gets$ destination vertex of edge $k$
+        \IF{$i \geq 0$ AND $j \geq 0$ AND $i \neq j$}
+            \STATE Scatter edge $i$ to $j$ and $j$ to $i$
+        \ENDIF
+    \ENDFOR
+    \STATE Pack edges for efficient access
+\end{algorithmic}
+\end{algorithm}
+
+    Similarly, As described in Algorithm~\ref{alg:g500_2} the \textbf{make\_bfs\_tree} function, there is a focus on the in-order prefetching within the BFS (Breadth-First Search) main loop. Here, the prefetching command, is designed to load data related to upcoming vertices into the CPU cache in advance of their processing. This prefetching is strategically placed to anticipate the data requirements of future loop iterations, thereby aiming to enhance memory access efficiency and overall performance of the BFS algorithm.
+
+\begin{algorithm}[H]
+\caption{Pseudocode for Graph 500 OMP-CSR In-Order Prefetching (make\_bfs\_tree function)}
+\label{alg:g500_2}
+\begin{algorithmic}[1]
+\REQUIRE Adjacency list representation of the graph, source vertex $srcvtx$
+\ENSURE BFS tree $bfs\_tree\_out$, maximum vertex $max\_vtx\_out$
+\STATE Initialize BFS tree $bfs\_tree\_out$ and maximum vertex $max\_vtx\_out$
+\STATE Initialize shared variables $k1$ and $k2$
+\STATE Perform in parallel (OMP):
+    \WHILE{$k1 \neq k2$}
+        \FOR{$k = k1$ to $oldk2 - 1$}
+            \STATE In-order prefetch for next iterations if within bounds
+            \STATE Expand BFS tree using BFS logic (details omitted)
+        \ENDFOR
+        \STATE Synchronize all threads
+        \STATE Update shared $k1$ and $k2$ (details omitted)
+    \ENDWHILE
+\STATE Clean up resources (details omitted)
+\RETURN $err$
+\end{algorithmic}
+\end{algorithm}
+
+    % \begin{figure}[htbp]
+    % \centering
+    % \includegraphics[width=\linewidth]{Term Project/graph-omp-csr-inorder.png}
+    % \caption{g500 omp-csr in-order manual prefetches}
+    % \label{fig5}
+    % \end{figure}
+
+
+    \textbf{Out of order prefetching} - As described in Algorithm~\ref{alg:g500_1} With a hint of out-of-order prefetching in \textbf{make\_bfs\_tree} function, prefetching \textbf{\&xadj[XOFF(vlist[k + PREFETCH\_DISTANCE])]} , where the prefetch address is dependent on the value within \textbf{vlist}, leading to potentially irregular memory access.
+    
+\begin{algorithm}[H]
+\caption{Pseudocode for Graph 500 OMP-CSR Out-of-Order Prefetching (make\_bfs\_tree function)}
+\label{alg:g500_1}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Graph represented by adjacency list $xadj$, source vertex $srcvtx$
+\STATE \textbf{Output:} BFS tree $bfs\_tree\_out$, maximum vertex $max\_vtx\_out$
+\STATE \textbf{Procedure:} \textsc{MakeBfsTree}
+\STATE Initialize $bfs\_tree\_out$ and $max\_vtx\_out$
+\STATE Initialize shared variables $k1$, $k2$
+\PARALLEL
+    \WHILE{$k1 \neq k2$}
+        \FORALL{$k$ from $k1$ to $oldk2 - 1$}
+            \STATE Prefetch $vlist[k + \text{PREFETCH\_DISTANCE}]$
+            \STATE Prefetch $xadj[\text{XOFF}(vlist[k + \text{PREFETCH\_DISTANCE}])]$
+            \STATE Expand BFS tree (details omitted for brevity)
+        \ENDFOR
+        \STATE Update $k1$, $k2$ (details omitted for brevity)
+    \ENDWHILE
+\ENDPARALLEL
+\STATE Clean up resources (details omitted for brevity)
+\RETURN $err$
+\end{algorithmic}
+\end{algorithm}
+
+    % \begin{figure}[htbp]
+    % \centering
+    % \includegraphics[width=\linewidth]{Term Project/graph-omp-csr-outoforder.png}
+    % \caption{g500 seq-csr out-of-order manual prefetches}
+    % \label{fig6}
+    % \end{figure}
+
+
+    \item \textbf{NAS-Integer Sort} - As described in Algorithm~\ref{alg:nas_is}, the loop iterates over a set number of keys (NUM\_KEYS), which is a fundamental operation in integer sorting algorithms. The work\_buff[key\_buff\_ptr2[i]]++ operation suggests that the algorithm is counting or classifying keys, a common step in integer sorting algorithms, particularly those based on bucket or counting sort techniques. This prefetching instruction is used to load data from the \textbf{key\_buff2} array into the CPU cache in advance. The conditional prefetching for \textbf{key\_buff1} based on \textbf{key\_buff2} indicates an optimization to handle non-sequential access patterns.
+
+
+\begin{algorithm}[H]
+\caption{Manual Prefetch Injection in NAS-IS}
+\label{alg:nas_is}
+\begin{algorithmic}[1]
+\STATE \textbf{for} $i = 0$ \textbf{to} $NUM\_KEYS - 1$ \textbf{do}
+\STATE \hspace{\algorithmicindent} Increment work buffer for key $i$
+\STATE \hspace{\algorithmicindent} \textbf{if} defined STRIDE \textbf{then}
+\STATE \hspace{\algorithmicindent}\hspace{\algorithmicindent} Prefetch $key\_buff2$ entry at distance FETCHDIST
+\STATE \hspace{\algorithmicindent} \textbf{end if}
+\STATE \hspace{\algorithmicindent} \textbf{if} $i + \text{(FETCHDIST >> 1)} < NUM\_KEYS$ \textbf{then}
+\STATE \hspace{\algorithmicindent}\hspace{\algorithmicindent} Prefetch $key\_buff1$ entry at offset given by $key\_buff2$
+\STATE \hspace{\algorithmicindent} \textbf{end if}
+\STATE \textbf{end for}
+\end{algorithmic}
+\end{algorithm}
+
+
+    \item \textbf{NAS-Conjugate Gradient} - As described in Algorithm~\ref{alg:nas_cg_mult}, In this NAS-Conjugate Gradient workload, the software prefetching is implemented to optimize the matrix-vector multiplication, a critical operation in many scientific computations. The algorithm iterates over the matrix rows, computing the dot product of a matrix row and a vector. \textbf{Prefetching Column Indices}: This step is where the algorithm prefetches column indices that are FETCHDIST steps ahead in the iteration. This prefetching aims to ensure that the elements of the colidx array are available in the CPU cache when they are needed, reducing memory access latency. \textbf{Prefetching Vector Elements:} In this step, the algorithm prefetches elements of the vector p. The prefetching is done slightly ahead of the current iteration point (by half the FETCHDIST). This strategy is effective when the access pattern to vector p is not strictly sequential and helps to ensure that the needed data is in the cache when accessed.
+
+\begin{algorithm}
+\caption{Manual Prefetch Injection in NAS-CG}
+\label{alg:nas_cg_mult}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Matrix $a$, vector $p$, row indices $rowstr$, column indices $colidx$
+\STATE \textbf{Output:} Resultant vectors $q$ and $w$
+\STATE \textbf{Procedure:} \textsc{MatrixVectorMultiply}
+\STATE Perform parallel loop over each row $j$
+\FOR{each row $j$ from 1 to $(\text{lastrow} - \text{firstrow} + 1)$}
+    \STATE Initialize sum to 0.0
+    \FOR{each element $k$ in row $j$}
+        \STATE Add product of $a[k]$ and $p[colidx[k]]$ to sum
+        \STATE \textbf{Prefetch Column Indices:} Prefetch future column indices at distance FETCHDIST
+        \STATE \textbf{Prefetch Vector Elements:} Prefetch elements of vector $p$ slightly ahead of the current point
+    \ENDFOR
+    \STATE Assign sum to $w[j]$ and $q[j]$
+\ENDFOR
+\end{algorithmic}
+\end{algorithm}
+
+\end{enumerate}
+
+\subsection{Automated Software Prefetching Algorithm}\label{AA}
+The algorithm implemented in this study is based on the foundational work presented by Sam Aimsworth [1]. While the core functionality of the algorithm remains consistent with the original implementation, we have made significant structural modifications to enhance the overall functionality, efficiency, reliability and readability of the code.  These changes are explained in detail under the section~\ref{subsec:enhancements}. These adaptations were necessary to align the algorithm more closely with the specific objectives and constraints of our research to test using newer and sparser versions of the workloads.
+
+As shown in Listing~\ref{lst:automated_prefetch}, the C++ code demonstrates a high level overview of our code for generating software prefetches automatically. This is implemented as a LLVM IR pass which is used within Clang.
+
+\begin{lstlisting}[language=Python, caption=Depth-First Search and Prefetch Generation, label=lst:automated_prefetch]
+def DepthFirstSearch(instruction):
+    ind_var_candidates = {}
+
+    for operand in instruction.source_operands:
+        if is_induction_variable(operand):
+            ind_var_candidates[operand] = {instruction}
+        elif is_loop_variable(operand):
+            ivar, ivar_set = DepthFirstSearch(loop_def(operand))
+            if ivar is not None:
+                ind_var_candidates[ivar] = {instruction}.union(ivar_set)
+
+    if len(ind_var_candidates) == 0:
+        return None
+    elif len(ind_var_candidates) == 1:
+        return next(iter(ind_var_candidates.items()))
+
+    closest_ivar = find_closest_loop_induction_var(ind_var_candidates)
+    return merge_instructions_based_on_indvar(closest_ivar, ind_var_candidates)
+
+def GeneratePrefetches():
+    prefetch_targets = {}
+    for load in loop_loads():
+        ind_var, ivar_set = DepthFirstSearch(load)
+        if ind_var is not None:
+            prefetch_targets[load] = (ind_var, ivar_set)
+
+    filter_out_unsuitable_prefetches(prefetch_targets)
+    return emit_prefetch_and_address_code(prefetch_targets)
+
+def filter_out_unsuitable_prefetches(prefetch_targets):
+    for target in list(prefetch_targets):
+        if has_function_calls(target) or causes_faults(target) or has_complex_phi_nodes(target):
+            del prefetch_targets[target]
+
+def emit_prefetch_and_address_code(prefetch_targets):
+    for load, (ind_var, instruction_set) in prefetch_targets.items():
+        offset = calculate_offset(load, ind_var)
+        updated_instructions = copy_and_update_instructions(instruction_set, ind_var, offset)
+        replace_with_prefetch(updated_instructions, load)
+
+def copy_and_update_instructions(instruction_set, ind_var, offset):
+    copied_instructions = copy_instructions(instruction_set)
+    for inst in copied_instructions:
+        if uses_induction_var(inst, ind_var):
+            update_instruction(inst, ind_var, offset)
+    return copied_instructions
+
+def replace_with_prefetch(instructions, load):
+    for inst in instructions:
+        if is_copy_of(inst, load):
+            convert_to_prefetch(inst)
+    place_instructions_before_load(load, instructions)
+
+\end{lstlisting}
+
+\subsection{Enhancements made}
+\label{subsec:enhancements}
+
+Enhancements and added functionality were done to the following functions which are wrapped around a top level \textbf{SwPrefetchPass} which is a custom LLVM Function pass. This pass is a transformation and analysis that runs over the source code of the benchmarks.
+
+\begin{lstlisting}[language=C++, caption={Enhanced Depth First Search Function}, label={lst:depthFirstSearch}]
+bool depthFirstSearch (Instruction* I, LoopInfo &LI, Instruction* &Phi, SmallVector<Instruction*,8> &Instrs, SmallVector<Instruction*,4> &Loads, SmallVector<Instruction*,4> &Phis, std::vector<SmallVector<Instruction*,8>>& Insts) 
+{
+    Use* u = I->getOperandList();
+    Use* end = u + I->getNumOperands();
+    SetVector<Instruction*> roundInsts;
+    bool found = false;
+
+    // Enhanced: Early loop termination for non-loop instructions
+    if (!LI.getLoopFor(I->getParent())) {
+        return false;
+    }
+
+    for(Use* v = u; v<end; v++) {
+        // Original logic...
+        
+        // Enhanced: Simplified logic for load instruction handling
+        else if(LoadInst * linst = dyn_cast<LoadInst>(v->get())) {
+            auto it = std::find(Loads.begin(), Loads.end(), linst);
+            if (it != Loads.end()) {
+                int lindex = std::distance(Loads.begin(), it);
+                Instruction* phi = Phis[lindex];
+                // Enhanced: Simplified phi comparison and update logic
+                updateRoundInstsAndPhi(LI, Phi, phi, roundInsts, Insts[lindex], found);
+            }
+        }
+        // Continue original logic...
+    }
+
+    if(found) for(auto q : roundInsts) Instrs.push_back(q);
+    return found;
+}
+
+// Enhanced: New function to simplify phi node comparison and update
+void updateRoundInstsAndPhi(LoopInfo &LI, Instruction* &Phi, Instruction* phi, SetVector<Instruction*>& roundInsts, SmallVector<Instruction*,8>& insts, bool& found) {
+    if (!Phi || LI.getLoopFor(Phi->getParent())->isLoopInvariant(phi)) {
+        roundInsts.clear();
+        for(auto q : insts) {
+            roundInsts.insert(q);
+        }
+        Phi = phi;
+        found = true;
+    } else if (!LI.getLoopFor(phi->getParent())->isLoopInvariant(Phi)) {
+        // Do nothing if phi is not older than Phi
+    }
+}
+\end{lstlisting}
+
+
+\begin{lstlisting}[language=C++, caption={Enhanced GEP-Based Induction Variable Identification}, label={lst:getWeirdCanonicalishInductionVariableGep}]
+GetElementPtrInst *getWeirdCanonicalishInductionVariableGep(Loop* L) const {
+    // Early null checks for Loop and Header
+    if (!L || !L->getHeader()) return nullptr;
+
+    BasicBlock *H = L->getHeader();
+    BasicBlock *Backedge = L->getLoopLatch();
+    if (!H || !Backedge) return nullptr;
+
+    // Streamlined loop over PHINodes
+    for (PHINode &PN : H->phis()) {
+        GetElementPtrInst *Inc = dyn_cast<GetElementPtrInst>(PN.getIncomingValueForBlock(Backedge));
+        if (Inc && isValidGEPInductionVariable(Inc, &PN)) {
+            return Inc;
+        }
+    }
+    return nullptr;
+}
+
+// Helper function to check backedge validity
+bool isValidBackedge(const Loop* L, BasicBlock* Incoming, BasicBlock* Backedge) const {
+    // ... implementation ...
+    return true; // Simplified for illustration
+}
+
+// Helper function to validate GEP induction variable
+bool isValidGEPInductionVariable(const GetElementPtrInst* Inc, const PHINode* PN) const {
+    // ... implementation ...
+    return false; // Simplified for illustration
+}
+\end{lstlisting}
+
+
+\section{Our Testing Results}
+
+For testing our implementation on the pre-existing work done by Ainsworth and Jones's implementation of software prefetching, we decided to run some of the pre-exisiting prefetching results for reference, and also add our implementation of auto-prefetching for Graph500. We also added the camel and kangaroo benchmarks and 
+
+\begin{table*}[!h]
+    \caption{compiled numerical results for prefetching workloads}
+    \label{tab:results_table}
+    
+    \centering
+    \newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+    \begin{tabular*}{\textwidth}{c}
+        % First sub-table
+        \begin{tabular*}{\textwidth}{|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|}
+            \hline
+            \multicolumn{4}{|c|}{NAS-IS} \\
+            \hline
+            Prefetch type & Iterations & Array Size & Execution Time \\
+            \hline
+            Auto & 10 & 33554432 & 1.12 \\
+            \hline
+            Manual & 10 & 33554432 & 1.11 \\
+            \hline
+            None & 10 & 33554432 & 1.26 \\
+        \end{tabular*} \\
+        % Second sub-table
+        \begin{tabular*}{\textwidth}{|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|}
+            \hline
+            \multicolumn{4}{|c|}{NAS-CG} \\
+            \hline
+            Prefetch type & Iterations & Array Size & Execution Time \\
+            \hline
+            Auto & 75 & 150000 & 22.17 \\
+            \hline
+            Manual & 75 & 150000 & 23.38 \\
+            \hline
+            None & 75 & 150000 & 22.45 \\
+        \end{tabular*} \\
+        \begin{tabular*}{\textwidth}{|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|}
+            \hline
+            \multicolumn{4}{|c|}{Graph500} \\
+            \hline
+            Prefetch type & Iterations & Harmonic mean TEPS & Mean Execution time  \\
+            \hline
+            Auto & 64 & 135453625.59 & 0.12386 \\
+            \hline
+            Manual in-order & 64 & 149765871.47 & 0.11202 \\
+            \hline
+            Manual out-of-order & 176750805.56 &  & 0.09492 \\
+            \hline
+            None & 64 & 119086727.03 & 0.14088 \\
+        \end{tabular*} \\
+        \begin{tabular*}{\textwidth}{|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|}
+            \hline
+            \multicolumn{4}{|c|}{Kangaroo} \\
+            \hline
+            Prefetch type & Iterations & Array Size & Execution Time \\
+            \hline
+            Auto & 75 & 150000 & 22.17 \\
+            \hline
+            Manual & 75 & 150000 & 23.38 \\
+            \hline
+            None & 75 & 150000 & 22.45 \\
+        \end{tabular*} \\
+        \begin{tabular*}{\textwidth}{|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|C{\dimexpr.25\textwidth-2\tabcolsep-1.5\arrayrulewidth}|}
+            \hline
+            \multicolumn{4}{|c|}{Camel} \\
+            \hline
+            Prefetch type & - & - & Execution Time (ms) \\
+            \hline
+            Auto & - & - & 5537 \\
+            \hline
+            Manual & - & - & 5396 \\
+            \hline
+            None & - & - & 8100 \\
+            \hline
+        \end{tabular*} \\
+        % Continue for other sub-tables
+    \end{tabular*}
+\end{table*}
+
+\subsection{Units}
+\begin{itemize}
+\item Use either SI (MKS) or CGS as primary units. (SI units are encouraged.) English units may be used as secondary units (in parentheses). An exception would be the use of English units as identifiers in trade, such as ``3.5-inch disk drive''.
+\item Avoid combining SI and CGS units, such as current in amperes and magnetic field in oersteds. This often leads to confusion because equations do not balance dimensionally. If you must use mixed units, clearly state the units for each quantity that you use in an equation.
+\item Do not mix complete spellings and abbreviations of units: ``Wb/m\textsuperscript{2}'' or ``webers per square meter'', not ``webers/m\textsuperscript{2}''. Spell out units when they appear in text: ``. . . a few henries'', not ``. . . a few H''.
+\item Use a zero before decimal points: ``0.25'', not ``.25''. Use ``cm\textsuperscript{3}'', not ``cc''.)
+\end{itemize}
+
+\subsection{Equations}
+Number equations consecutively. To make your 
+equations more compact, you may use the solidus (~/~), the exp function, or 
+appropriate exponents. Italicize Roman symbols for quantities and variables, 
+but not Greek symbols. Use a long dash rather than a hyphen for a minus 
+sign. Punctuate equations with commas or periods when they are part of a 
+sentence, as in:
+\begin{equation}
+a+b=\gamma\label{eq}
+\end{equation}
+
+Be sure that the 
+symbols in your equation have been defined before or immediately following 
+the equation. Use ``\eqref{eq}'', not ``Eq.~\eqref{eq}'' or ``equation \eqref{eq}'', except at 
+the beginning of a sentence: ``Equation \eqref{eq} is . . .''
+
+\subsection{\LaTeX-Specific Advice}
+
+Please use ``soft'' (e.g., \verb|\eqref{Eq}|) cross references instead
+of ``hard'' references (e.g., \verb|(1)|). That will make it possible
+to combine sections, add equations, or change the order of figures or
+citations without having to go through the file line by line.
+
+Please don't use the \verb|{eqnarray}| equation environment. Use
+\verb|{align}| or \verb|{IEEEeqnarray}| instead. The \verb|{eqnarray}|
+environment leaves unsightly spaces around relation symbols.
+
+Please note that the \verb|{subequations}| environment in {\LaTeX}
+will increment the main equation counter even when there are no
+equation numbers displayed. If you forget that, you might write an
+article in which the equation numbers skip from (17) to (20), causing
+the copy editors to wonder if you've discovered a new method of
+counting.
+
+{\BibTeX} does not work by magic. It doesn't get the bibliographic
+data from thin air but from .bib files. If you use {\BibTeX} to produce a
+bibliography you must send the .bib files. 
+
+{\LaTeX} can't read your mind. If you assign the same label to a
+subsubsection and a table, you might find that Table I has been cross
+referenced as Table IV-B3. 
+
+{\LaTeX} does not have precognitive abilities. If you put a
+\verb|\label| command before the command that updates the counter it's
+supposed to be using, the label will pick up the last counter to be
+cross referenced instead. In particular, a \verb|\label| command
+should not go before the caption of a figure or a table.
+
+Do not use \verb|\nonumber| inside the \verb|{array}| environment. It
+will not stop equation numbers inside \verb|{array}| (there won't be
+any anyway) and it might stop a wanted equation number in the
+surrounding equation.
+
+\subsection{Some Common Mistakes}\label{SCM}
+\begin{itemize}
+\item The word ``data'' is plural, not singular.
+\item The subscript for the permeability of vacuum $\mu_{0}$, and other common scientific constants, is zero with subscript formatting, not a lowercase letter ``o''.
+\item In American English, commas, semicolons, periods, question and exclamation marks are located within quotation marks only when a complete thought or name is cited, such as a title or full quotation. When quotation marks are used, instead of a bold or italic typeface, to highlight a word or phrase, punctuation should appear outside of the quotation marks. A parenthetical phrase or statement at the end of a sentence is punctuated outside of the closing parenthesis (like this). (A parenthetical sentence is punctuated within the parentheses.)
+\item A graph within a graph is an ``inset'', not an ``insert''. The word alternatively is preferred to the word ``alternately'' (unless you really mean something that alternates).
+\item Do not use the word ``essentially'' to mean ``approximately'' or ``effectively''.
+\item In your paper title, if the words ``that uses'' can accurately replace the word ``using'', capitalize the ``u''; if not, keep using lower-cased.
+\item Be aware of the different meanings of the homophones ``affect'' and ``effect'', ``complement'' and ``compliment'', ``discreet'' and ``discrete'', ``principal'' and ``principle''.
+\item Do not confuse ``imply'' and ``infer''.
+\item The prefix ``non'' is not a word; it should be joined to the word it modifies, usually without a hyphen.
+\item There is no period after the ``et'' in the Latin abbreviation ``et al.''.
+\item The abbreviation ``i.e.'' means ``that is'', and the abbreviation ``e.g.'' means ``for example''.
+\end{itemize}
+An excellent style manual for science writers is \cite{b7}.
+
+\subsection{Authors and Affiliations}
+\textbf{The class file is designed for, but not limited to, six authors.} A 
+minimum of one author is required for all conference articles. Author names 
+should be listed starting from left to right and then moving down to the 
+next line. This is the author sequence that will be used in future citations 
+and by indexing services. Names should not be listed in columns nor group by 
+affiliation. Please keep your affiliations as succinct as possible (for 
+example, do not differentiate among departments of the same organization).
+
+\subsection{Identify the Headings}
+Headings, or heads, are organizational devices that guide the reader through 
+your paper. There are two types: component heads and text heads.
+
+Component heads identify the different components of your paper and are not 
+topically subordinate to each other. Examples include Acknowledgments and 
+References and, for these, the correct style to use is ``Heading 5''. Use 
+``figure caption'' for your Figure captions, and ``table head'' for your 
+table title. Run-in heads, such as ``Abstract'', will require you to apply a 
+style (in this case, italic) in addition to the style provided by the drop 
+down menu to differentiate the head from the text.
+
+Text heads organize the topics on a relational, hierarchical basis. For 
+example, the paper title is the primary text head because all subsequent 
+material relates and elaborates on this one topic. If there are two or more 
+sub-topics, the next level head (uppercase Roman numerals) should be used 
+and, conversely, if there are not at least two sub-topics, then no subheads 
+should be introduced.
+
+\subsection{Figures and Tables}
+\paragraph{Positioning Figures and Tables} Place figures and tables at the top and 
+bottom of columns. Avoid placing them in the middle of columns. Large 
+figures and tables may span across both columns. Figure captions should be 
+below the figures; table heads should appear above the tables. Insert 
+figures and tables after they are cited in the text. Use the abbreviation 
+``Fig.~\ref{fig}'', even at the beginning of a sentence.
+
+\begin{table}[htbp]
+\caption{Table Type Styles}
+\begin{center}
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{Table}&\multicolumn{3}{|c|}{\textbf{Table Column Head}} \\
+\cline{2-4} 
+\textbf{Head} & \textbf{\textit{Table column subhead}}& \textbf{\textit{Subhead}}& \textbf{\textit{Subhead}} \\
+\hline
+copy& More table copy$^{\mathrm{a}}$& &  \\
+\hline
+\multicolumn{4}{l}{$^{\mathrm{a}}$Sample of a Table footnote.}
+\end{tabular}
+\label{tab1}
+\end{center}
+\end{table}
+
+\begin{figure}[htbp]
+\centerline{\includegraphics{fig1.png}}
+\caption{Example of a figure caption.}
+\label{fig}
+\end{figure}
+
+Figure Labels: Use 8 point Times New Roman for Figure labels. Use words 
+rather than symbols or abbreviations when writing Figure axis labels to 
+avoid confusing the reader. As an example, write the quantity 
+``Magnetization'', or ``Magnetization, M'', not just ``M''. If including 
+units in the label, present them within parentheses. Do not label axes only 
+with units. In the example, write ``Magnetization (A/m)'' or ``Magnetization 
+\{A[m(1)]\}'', not just ``A/m''. Do not label axes with a ratio of 
+quantities and units. For example, write ``Temperature (K)'', not 
+``Temperature/K''.
+
+\section*{Acknowledgment}
+
+The preferred spelling of the word ``acknowledgment'' in America is without 
+an ``e'' after the ``g''. Avoid the stilted expression ``one of us (R. B. 
+G.) thanks $\ldots$''. Instead, try ``R. B. G. thanks$\ldots$''. Put sponsor 
+acknowledgments in the unnumbered footnote on the first page.
+
+\section*{References}
+
+Please number citations consecutively within brackets \cite{b1}. The 
+sentence punctuation follows the bracket \cite{b2}. Refer simply to the reference 
+number, as in \cite{b3}---do not use ``Ref. \cite{b3}'' or ``reference \cite{b3}'' except at 
+the beginning of a sentence: ``Reference \cite{b3} was the first $\ldots$''
+
+Number footnotes separately in superscripts. Place the actual footnote at 
+the bottom of the column in which it was cited. Do not put footnotes in the 
+abstract or reference list. Use letters for table footnotes.
+
+Unless there are six authors or more give all authors' names; do not use 
+``et al.''. Papers that have not been published, even if they have been 
+submitted for publication, should be cited as ``unpublished'' \cite{b4}. Papers 
+that have been accepted for publication should be cited as ``in press'' \cite{b5}. 
+Capitalize only the first word in a paper title, except for proper nouns and 
+element symbols.
+
+For papers published in translation journals, please give the English 
+citation first, followed by the original foreign-language citation \cite{b6}.
+
+\begin{thebibliography}{00}
+\bibitem{1} Sam Ainsworth and Timothy M. Jones. 2019. Software Prefetching for Indirect Memory Accesses: A Microarchitectural Perspective. ACM Trans. Comput. Syst. 36, 3, Article 8 (August 2018), 34 pages. https://doi.org/10.1145/3319393
+
+\bibitem{2} X. Yu, C. J. Hughes, N. Satish and S. Devadas, "IMP: Indirect memory prefetcher," 2015 48th Annual IEEE/ACM International Symposium on Microarchitecture (MICRO), Waikiki, HI, USA, 2015, pp. 178-190, doi: 10.1145/2830772.2830807.
+\bibitem{3} Mustafa Cavus, Resit Sendag, and Joshua J. Yi. 2020. Informed Prefetching for Indirect Memory Accesses. ACM Trans. Archit. Code Optim. 17, 1, Article 4 (March 2020), 29 pages. https://doi.org/10.1145/3374216
+\bibitem{4} APT-GET: Profile- Guided Timely Software Prefetching. Saba Jamilan, Tanvir Ahmed Khan, Grant Ayers, Baris Kasikci, and Heiner Litz. 2022. ACM
+\end{thebibliography}
+\vspace{12pt}
+\color{red}
+IEEE conference templates contain guidance text for composing and formatting conference papers. Please ensure that all template text is removed from your conference paper prior to submission to the conference. Failure to remove the template text from your paper may result in your paper not being published.
+
+\end{document}
